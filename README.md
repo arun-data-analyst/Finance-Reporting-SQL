@@ -42,8 +42,6 @@ An end-to-end SQL portfolio project that demonstrates **data modeling, idempoten
 
 ## 🧩 Data Model (ERD)
 
-Place your Lucidchart PNG at `erd/finance_reporting.png` and it will render here:
-
 ![ERD](erd/finance_reporting.png)
 
 **Entities (singular naming):** `manager`, `project`, `spend_log`, `milestone`, `forecast`, `purchase_order`, `project_completion`, `kpi_reference`.
