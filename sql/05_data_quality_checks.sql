@@ -18,9 +18,6 @@ PRINT '===============================================================';
 
 /* ================================================================================================
    CHECK 1: Duplicate spend_log entry identifiers
-   ------------------------------------------------------------------------------------------------
-   Why this matters: entry_id is expected to be unique. Duplicate IDs can double-count spend totals
-   and confuse auditors who expect a one-to-one mapping with source invoices.
    ================================================================================================ */
 PRINT '1. Duplicate spend_log entry_id values';
 SELECT entry_id,
@@ -33,15 +30,12 @@ ORDER BY duplicate_count DESC,
 
 /* ================================================================================================
    CHECK 2: Duplicate milestone names within the same project
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Milestone names act as narrative labels. Seeing the same label repeated under a
-   project makes timeline reviews difficult.
    ================================================================================================ */
 PRINT '2. Duplicate milestone names per project';
 SELECT project_id,
        milestone_name,
        COUNT(*) AS duplicate_count
-FROM   milestones
+FROM   milestone
 GROUP BY project_id,
          milestone_name
 HAVING COUNT(*) > 1
@@ -50,9 +44,6 @@ ORDER BY project_id,
 
 /* ================================================================================================
    CHECK 3: Duplicate forecast dates per project
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Each project should provide a single outlook per reporting date. Multiple rows
-   on the same day lead to conflicting metrics.
    ================================================================================================ */
 PRINT '3. Duplicate forecast dates for a single project';
 SELECT project_id,
@@ -67,13 +58,10 @@ ORDER BY project_id,
 
 /* ================================================================================================
    CHECK 4: Missing financial values
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Null budgets, spend amounts, categories, or forecast values break calculations in
-   dashboards and KPI logic.
    ================================================================================================ */
 PRINT '4a. Projects missing a budget amount';
 SELECT project_id
-FROM   projects
+FROM   project
 WHERE  budget IS NULL;
 
 PRINT '4b. Spend entries missing category or amount';
@@ -96,20 +84,15 @@ WHERE  forecast_amount IS NULL
 
 /* ================================================================================================
    CHECK 5: Projects without assigned managers
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Accountability requires every project to list a responsible manager.
    ================================================================================================ */
 PRINT '5. Projects without a manager_id';
 SELECT project_id,
-       name
-FROM   projects
+       project_name
+FROM   project
 WHERE  manager_id IS NULL;
 
 /* ================================================================================================
    CHECK 6: Spend entries with blank or invalid categories
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Spend categories drive reporting slices. Blank labels cause totals to fall into
-   an "uncategorised" bucket or be excluded altogether.
    ================================================================================================ */
 PRINT '6. Spend entries missing valid category labels';
 SELECT entry_id,
@@ -121,9 +104,6 @@ WHERE  category IS NULL
 
 /* ================================================================================================
    CHECK 7: Spend outliers (amount greater than 3x the project average)
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Exceptionally high spend can reflect data entry mistakes or genuine spikes that
-   deserve explanation. The query compares each spend amount to the average for its project.
    ================================================================================================ */
 PRINT '7. Spend entries that exceed three times the project average';
 WITH SpendAverages AS (
@@ -147,9 +127,6 @@ ORDER BY s.project_id,
 
 /* ================================================================================================
    CHECK 8: Forecast deviations greater than 50%
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Large differences between forecast and actual spend may indicate outdated plans
-   or reporting issues. We only evaluate positive forecast amounts to avoid divide-by-zero errors.
    ================================================================================================ */
 PRINT '8. Forecast rows with deviations greater than 50 percent';
 SELECT forecast_id,
@@ -166,29 +143,23 @@ ORDER BY project_id,
 
 /* ================================================================================================
    CHECK 9: Projects lacking milestones
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Milestones communicate progress. Projects without milestones might be new, but
-   they could also represent missing data.
    ================================================================================================ */
 PRINT '9. Projects that do not yet have milestones';
 SELECT p.project_id,
-       p.name
-FROM   projects p
-LEFT JOIN milestones m
+       p.project_name
+FROM   project p
+LEFT JOIN milestone m
        ON p.project_id = m.project_id
 WHERE  m.project_id IS NULL
 ORDER BY p.project_id;
 
 /* ================================================================================================
    CHECK 10: Projects without spend activity
-   ------------------------------------------------------------------------------------------------
-   Why this matters: No spend may be legitimate for early-stage projects, but it can also signal a
-   missing data feed. Review the list to confirm whether action is required.
    ================================================================================================ */
 PRINT '10. Projects that have no spend_log entries';
 SELECT p.project_id,
-       p.name
-FROM   projects p
+       p.project_name
+FROM   project p
 LEFT JOIN spend_log s
        ON p.project_id = s.project_id
 WHERE  s.project_id IS NULL

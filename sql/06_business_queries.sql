@@ -18,22 +18,22 @@ PRINT 'Starting 06_business_queries.sql: exploring five core project finance que
 /* ================================================================================================
    Question 1: Budget vs. actual spend by project
    -----------------------------------------------------------------------------------------------
-   Goal: Compare each project''s approved budget with the actual spend recorded in spend_log.
+   Goal: Compare each project's approved budget with the actual spend recorded in spend_log.
    Output highlights the dollar variance and the variance percentage so portfolio leaders can see
    which projects are trending under or over budget.
    ================================================================================================ */
--- Question 1 - Budget vs. Actual Spend by Project
+
 WITH spend_by_project AS (
     SELECT
         sl.project_id,
         SUM(sl.amount) AS actual_spend
-    FROM spend_log AS sl
+    FROM dbo.spend_log AS sl
     GROUP BY
         sl.project_id
 )
 SELECT
     p.project_id,
-    p.name AS project_name,
+    p.project_name,
     p.budget AS budget_amount,
     COALESCE(sb.actual_spend, 0.00) AS actual_spend_amount,
     p.budget - COALESCE(sb.actual_spend, 0.00) AS variance_amount,
@@ -41,7 +41,7 @@ SELECT
         WHEN p.budget = 0 THEN NULL
         ELSE (p.budget - COALESCE(sb.actual_spend, 0.00)) / p.budget
     END AS variance_percent
-FROM projects AS p
+FROM dbo.project AS p
 LEFT JOIN spend_by_project AS sb
     ON sb.project_id = p.project_id
 ORDER BY
@@ -54,29 +54,29 @@ ORDER BY
    confirm whether invoices are catching up with commitments or if outstanding POs still need to be
    received and accrued.
    ================================================================================================ */
--- Question 2 - Purchase Orders vs. Actual Expenditure
+
 WITH purchase_order_totals AS (
     SELECT
         po.project_id,
         SUM(po.po_amount) AS total_purchase_orders,
         MIN(po.po_date) AS first_po_date,
         MAX(po.po_date) AS latest_po_date
-    FROM purchase_orders AS po
+    FROM dbo.purchase_order AS po
     GROUP BY
         po.project_id
 ), actual_spend_totals AS (
     SELECT
         sl.project_id,
         SUM(sl.amount) AS total_actual_spend,
-        MIN(sl.[date]) AS first_spend_date,
-        MAX(sl.[date]) AS latest_spend_date
-    FROM spend_log AS sl
+        MIN(sl.spend_date) AS first_spend_date,
+        MAX(sl.spend_date) AS latest_spend_date
+    FROM dbo.spend_log AS sl
     GROUP BY
         sl.project_id
 )
 SELECT
     p.project_id,
-    p.name AS project_name,
+    p.project_name,
     COALESCE(pot.total_purchase_orders, 0.00) AS total_purchase_orders,
     COALESCE(ast.total_actual_spend, 0.00) AS total_actual_spend,
     COALESCE(pot.total_purchase_orders, 0.00) - COALESCE(ast.total_actual_spend, 0.00) AS open_commitments,
@@ -88,7 +88,7 @@ SELECT
     pot.latest_po_date,
     ast.first_spend_date,
     ast.latest_spend_date
-FROM projects AS p
+FROM dbo.project AS p
 LEFT JOIN purchase_order_totals AS pot
     ON pot.project_id = p.project_id
 LEFT JOIN actual_spend_totals AS ast
@@ -102,21 +102,21 @@ ORDER BY
    Goal: Compare forecasted spend to actual outcomes for each forecast period. Variance values
    highlight where delivery teams are overshooting or undershooting expectations.
    ================================================================================================ */
--- Question 3 - Forecast vs. Actual Variance Analysis
+
 WITH forecast_periods AS (
     SELECT
         f.project_id,
         f.forecast_date,
         SUM(f.forecast_amount) AS forecast_amount,
         SUM(f.actual_amount) AS actual_amount
-    FROM forecast AS f
+    FROM dbo.forecast AS f
     GROUP BY
         f.project_id,
         f.forecast_date
 )
 SELECT
     fp.project_id,
-    p.name AS project_name,
+    p.project_name,
     fp.forecast_date,
     fp.forecast_amount,
     fp.actual_amount,
@@ -126,7 +126,7 @@ SELECT
         ELSE (fp.actual_amount - fp.forecast_amount) / fp.forecast_amount
     END AS variance_percent
 FROM forecast_periods AS fp
-INNER JOIN projects AS p
+INNER JOIN dbo.project AS p
     ON p.project_id = fp.project_id
 ORDER BY
     fp.project_id,
@@ -139,22 +139,22 @@ ORDER BY
    spend) up to the end of each month. This helps finance teams anticipate when budgets may be
    exhausted if the current pace continues.
    ================================================================================================ */
--- Question 4 - Spend Trend and Burn Rate Analysis
+
 WITH monthly_spend AS (
     SELECT
         sl.project_id,
-        DATEFROMPARTS(YEAR(sl.[date]), MONTH(sl.[date]), 1) AS month_start,
-        EOMONTH(sl.[date]) AS month_end,
+        DATEFROMPARTS(YEAR(sl.spend_date), MONTH(sl.spend_date), 1) AS month_start,
+        EOMONTH(sl.spend_date) AS month_end,
         SUM(sl.amount) AS month_spend
-    FROM spend_log AS sl
+    FROM dbo.spend_log AS sl
     GROUP BY
         sl.project_id,
-        DATEFROMPARTS(YEAR(sl.[date]), MONTH(sl.[date]), 1),
-        EOMONTH(sl.[date])
+        DATEFROMPARTS(YEAR(sl.spend_date), MONTH(sl.spend_date), 1),
+        EOMONTH(sl.spend_date)
 )
 SELECT
     ms.project_id,
-    p.name AS project_name,
+    p.project_name,
     ms.month_start,
     ms.month_end,
     ms.month_spend,
@@ -169,10 +169,10 @@ SELECT
                  PARTITION BY ms.project_id
                  ORDER BY ms.month_start
                  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-             ) / NULLIF(CAST(DATEDIFF(DAY, p.start_date, ms.month_end) + 1 AS DECIMAL(10,2)), 0)
+             ) / NULLIF(CAST(DATEDIFF(DAY, p.start_date, ms.month_end) + 1 AS DECIMAL(12,2)), 0)
     END AS burn_rate_per_day
 FROM monthly_spend AS ms
-INNER JOIN projects AS p
+INNER JOIN dbo.project AS p
     ON p.project_id = ms.project_id
 ORDER BY
     ms.project_id,
@@ -186,7 +186,7 @@ ORDER BY
    Delayed milestones as behind schedule. In-flight milestones marked "On Track" are shown for
    awareness but excluded from the on-time percentage until they close.
    ================================================================================================ */
--- Question 5 - Milestone Timeliness and Schedule Health
+
 WITH milestone_flags AS (
     SELECT
         m.project_id,
@@ -196,7 +196,7 @@ WITH milestone_flags AS (
         m.status,
         CASE WHEN m.status = 'Delayed' THEN 1 ELSE 0 END AS is_delayed,
         CASE WHEN m.status = 'Completed' THEN 1 ELSE 0 END AS is_completed
-    FROM milestones AS m
+    FROM dbo.milestone AS m
 ), project_summary AS (
     SELECT
         mf.project_id,
@@ -209,7 +209,7 @@ WITH milestone_flags AS (
 )
 SELECT
     mf.project_id,
-    p.name AS project_name,
+    p.project_name,
     mf.milestone_id,
     mf.milestone_name,
     mf.due_date,
@@ -220,12 +220,12 @@ SELECT
     ps.inflight_count,
     CASE
         WHEN ps.completed_count + ps.delayed_count = 0 THEN NULL
-        ELSE CAST(ps.completed_count AS DECIMAL(10,2)) / (ps.completed_count + ps.delayed_count)
+        ELSE CAST(ps.completed_count AS DECIMAL(12,2)) / (ps.completed_count + ps.delayed_count)
     END AS on_time_completion_percent
 FROM milestone_flags AS mf
 INNER JOIN project_summary AS ps
     ON ps.project_id = mf.project_id
-INNER JOIN projects AS p
+INNER JOIN dbo.project AS p
     ON p.project_id = mf.project_id
 ORDER BY
     mf.project_id,
@@ -234,10 +234,6 @@ ORDER BY
 
 /* ================================================================================================
    KPI Views: Reusable metrics for dashboards and Power BI models
-   -----------------------------------------------------------------------------------------------
-   The following views calculate key finance and delivery KPIs requested by leadership. Wrapping the
-   logic inside views ensures Power BI (or any reporting tool) can consume the metrics without
-   rewriting business rules in multiple places.
    ================================================================================================ */
 
 -- Drop and recreate the budget utilization view so reruns stay idempotent
@@ -256,7 +252,7 @@ WITH spend_by_project AS (
 )
 SELECT
     p.project_id,
-    p.name AS project_name,
+    p.project_name,
     p.budget AS budget_amount,
     COALESCE(sb.actual_spend, 0.00) AS actual_spend_amount,
     CASE
@@ -264,7 +260,7 @@ SELECT
         ELSE COALESCE(sb.actual_spend, 0.00) / p.budget
     END AS budget_utilization_percent,
     COALESCE(sb.actual_spend, 0.00) - p.budget AS cost_variance_amount
-FROM dbo.projects AS p
+FROM dbo.project AS p
 LEFT JOIN spend_by_project AS sb
     ON sb.project_id = p.project_id;
 GO
@@ -285,13 +281,13 @@ WITH spend_by_project AS (
 ), project_flags AS (
     SELECT
         p.project_id,
-        p.name AS project_name,
+        p.project_name,
         p.budget,
         COALESCE(sb.actual_spend, 0.00) AS actual_spend,
         CASE
             WHEN COALESCE(sb.actual_spend, 0.00) <= p.budget THEN 1 ELSE 0
         END AS is_on_budget
-    FROM dbo.projects AS p
+    FROM dbo.project AS p
     LEFT JOIN spend_by_project AS sb
         ON sb.project_id = p.project_id
 )
@@ -301,7 +297,7 @@ SELECT
     COUNT(*) - SUM(project_flags.is_on_budget) AS projects_over_budget,
     CASE
         WHEN COUNT(*) = 0 THEN NULL
-        ELSE CAST(SUM(project_flags.is_on_budget) AS DECIMAL(10,2)) / COUNT(*)
+        ELSE CAST(SUM(project_flags.is_on_budget) AS DECIMAL(12,2)) / COUNT(*)
     END AS percent_projects_on_budget
 FROM project_flags;
 GO
@@ -315,7 +311,7 @@ AS
 WITH completion_data AS (
     SELECT
         p.project_id,
-        p.name AS project_name,
+        p.project_name,
         p.end_date AS planned_end_date,
         pc.actual_end_date,
         CASE
@@ -323,7 +319,7 @@ WITH completion_data AS (
             WHEN pc.actual_end_date <= p.end_date THEN 1
             ELSE 0
         END AS is_on_time
-    FROM dbo.projects AS p
+    FROM dbo.project AS p
     LEFT JOIN dbo.project_completion AS pc
         ON pc.project_id = p.project_id
 )
@@ -333,7 +329,7 @@ SELECT
     COUNT(*) - SUM(is_on_time) AS projects_delivered_late,
     CASE
         WHEN COUNT(*) = 0 THEN NULL
-        ELSE CAST(SUM(is_on_time) AS DECIMAL(10,2)) / COUNT(*)
+        ELSE CAST(SUM(is_on_time) AS DECIMAL(12,2)) / COUNT(*)
     END AS percent_projects_on_time
 FROM completion_data;
 GO

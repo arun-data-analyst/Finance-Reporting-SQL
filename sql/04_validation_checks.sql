@@ -18,53 +18,40 @@ PRINT '===============================================================';
 
 /* ================================================================================================
    CHECK 1: Spend entries must point to valid projects
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Every spend_log row should belong to a project that exists in the projects table.
-   If rows appear in the result, review the project_id value and either fix the typo or create the
-   missing project record before continuing.
    ================================================================================================ */
 PRINT '1. Orphaned spend_log.project_id references';
 SELECT entry_id,
        project_id
 FROM   spend_log
-WHERE  project_id NOT IN (SELECT project_id FROM projects);
+WHERE  project_id NOT IN (SELECT project_id FROM project);
 
 /* ================================================================================================
    CHECK 2: Projects must be assigned to valid managers
-   ------------------------------------------------------------------------------------------------
-   Why this matters: The dashboard assumes each project rolls up to a named leader. When a manager_id
-   does not exist in the managers table, reporting and accountability both break.
    ================================================================================================ */
-PRINT '2. Orphaned projects.manager_id references';
+PRINT '2. Orphaned project.manager_id references';
 SELECT project_id,
        manager_id
-FROM   projects
-WHERE  manager_id NOT IN (SELECT manager_id FROM managers);
+FROM   project
+WHERE  manager_id NOT IN (SELECT manager_id FROM manager);
 
 /* ================================================================================================
    CHECK 3: Milestone status must stay within the approved list
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Downstream visuals only recognise "Completed", "Delayed", and "On Track".
-   Additional spellings or blank values cause milestones to disappear from charts.
    ================================================================================================ */
 PRINT '3. Milestones with invalid status values';
 SELECT milestone_id,
        project_id,
        status
-FROM   milestones
+FROM   milestone
 WHERE  status NOT IN ('Completed', 'Delayed', 'On Track')
        OR status IS NULL;
 
 /* ================================================================================================
    CHECK 4: Key financial numbers must be non-negative
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Negative budgets, spend amounts, or forecasts usually signal data entry errors.
-   The following queries surface any value below zero so teams can correct them promptly.
    ================================================================================================ */
 PRINT '4a. Projects with negative budgets';
 SELECT project_id,
        budget
-FROM   projects
+FROM   project
 WHERE  budget < 0;
 
 PRINT '4b. Spend entries with negative amounts';
@@ -85,9 +72,6 @@ WHERE  forecast_amount < 0
 
 /* ================================================================================================
    CHECK 5: Forecast accuracy should stay within +/-10%
-   ------------------------------------------------------------------------------------------------
-   Why this matters: Material variances help surface projects that need extra attention. We only
-   evaluate rows where a positive forecast_amount exists to avoid divide-by-zero warnings.
    ================================================================================================ */
 PRINT '5. Forecasts where actual spend deviates more than 10 percent';
 SELECT forecast_id,

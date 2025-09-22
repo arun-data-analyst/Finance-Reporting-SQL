@@ -1,11 +1,11 @@
-﻿USE FinanceReporting;
+﻿﻿USE FinanceReporting;
 GO
 
 -- =================================================================================================
--- Script: 03_insert_data_mf.sql
+-- Script: 03_insert_data.sql
 -- Title : Populate the Finance Reporting database with a comprehensive demonstration dataset
 -- Author: Arun Acharya
--- Purpose: This idempotent script populates the managers, projects, spend_log, milestones, forecast,
+-- Purpose: This idempotent script populates the manager, project, spend_log, milestone, forecast,
 --          and kpi_reference tables with a larger, easy-to-understand dataset that resembles activity
 --          across 10 managers and approximately 50 projects. It is written with extensive explanations
 --          so that both technical and non-technical readers can follow along.
@@ -22,15 +22,15 @@ GO
    ================================================================================================ */
 
 /* -----------------------------------------------
-   1A. Managers (10 leaders responsible for projects)
+   1A. Manager (10 leaders responsible for projects)
    ----------------------------------------------- */
-DECLARE @Managers TABLE (
+DECLARE @Manager TABLE (
     manager_id   CHAR(4)     NOT NULL PRIMARY KEY,
     manager_name NVARCHAR(100) NOT NULL,
-    email        NVARCHAR(255) NOT NULL
+    email        NVARCHAR(100) NOT NULL
 );
 
-INSERT INTO @Managers (manager_id, manager_name, email)
+INSERT INTO @Manager (manager_id, manager_name, email)
 VALUES
     ('M001', 'Arun Acharya', 'arun.acharya@proman.com'),
     ('M002', 'Emily Chen', 'emily.chen@proman.com'),
@@ -44,19 +44,19 @@ VALUES
     ('M010', 'Sofia Petrova', 'sofia.petrova@proman.com');
 
 /* -----------------------------------------------------------
-   1B. Projects (around 50 initiatives aligned to those managers)
+   1B. Project (around 50 initiatives aligned to those managers)
    ----------------------------------------------------------- */
-DECLARE @Projects TABLE (
+DECLARE @Project TABLE (
     project_seq  INT          NOT NULL PRIMARY KEY,
     project_id   CHAR(4)      NOT NULL,
-    project_name NVARCHAR(200) NOT NULL,
+    project_name NVARCHAR(100) NOT NULL,
     budget       DECIMAL(14,2) NOT NULL,
     start_date   DATE         NOT NULL,
     end_date     DATE         NOT NULL,
     manager_id   CHAR(4)      NOT NULL
 );
 
-INSERT INTO @Projects (project_seq, project_id, project_name, budget, start_date, end_date, manager_id)
+INSERT INTO @Project (project_seq, project_id, project_name, budget, start_date, end_date, manager_id)
 VALUES
     ( 1, 'P001', '5G Tower Deployment - East Region',            650000, '2025-01-01', '2025-12-15', 'M001'),
     ( 2, 'P002', '5G Tower Deployment - North Region',           600000, '2025-02-01', '2026-01-31', 'M001'),
@@ -117,7 +117,7 @@ VALUES
    ----------------------------------------------------------------- */
 DECLARE @SpendPattern TABLE (
     sequence_no     INT            NOT NULL PRIMARY KEY,
-    category        NVARCHAR(50)   NOT NULL,
+    category        VARCHAR(50)   NOT NULL,
     month_offset    INT            NOT NULL,
     day_offset      INT            NOT NULL,
     spend_fraction  DECIMAL(6,4)   NOT NULL
@@ -132,17 +132,17 @@ VALUES
     (5, 'Professional Services', 4, 20, 0.14);
 
 /* ------------------------------------------------------
-   1D. Milestone stages (three checkpoints per project)
+   1D. Milestone stage (three checkpoints per project)
    ------------------------------------------------------ */
-DECLARE @MilestoneStages TABLE (
+DECLARE @MilestoneStage TABLE (
     stage_number  INT           NOT NULL PRIMARY KEY,
-    milestone_name NVARCHAR(120) NOT NULL,
+    milestone_name NVARCHAR(100) NOT NULL,
     month_offset  INT           NOT NULL,
     day_offset    INT           NOT NULL,
-    default_status NVARCHAR(40) NOT NULL
+    default_status NVARCHAR(20) NOT NULL
 );
 
-INSERT INTO @MilestoneStages (stage_number, milestone_name, month_offset, day_offset, default_status)
+INSERT INTO @MilestoneStage (stage_number, milestone_name, month_offset, day_offset, default_status)
 VALUES
     (1, 'Project Kick-off Complete', 0, 7,  'Completed'),
     (2, 'Midpoint Health Review',    3, 0,  'On Track'),
@@ -190,7 +190,7 @@ VALUES
    ------------------------------------------------------------ */
 DECLARE @KpiReference TABLE (
     kpi_name         NVARCHAR(50)  NOT NULL PRIMARY KEY,
-    description      NVARCHAR(400) NOT NULL,
+    description      NVARCHAR(MAX) NOT NULL,
     target_threshold NVARCHAR(60)  NOT NULL
 );
 
@@ -221,7 +221,7 @@ DECLARE @SpendLog TABLE (
     project_id  CHAR(4)      NOT NULL,
     spend_date  DATE         NOT NULL,
     category    NVARCHAR(50) NOT NULL,
-    amount      DECIMAL(14,2) NOT NULL
+    amount      DECIMAL(12,2) NOT NULL
 );
 
 INSERT INTO @SpendLog (entry_id, project_id, spend_date, category, amount)
@@ -236,18 +236,18 @@ SELECT
     END AS spend_date,
     sp.category,
     ROUND(p.budget * sp.spend_fraction, 2) AS amount
-FROM @Projects AS p
+FROM @Project AS p
 CROSS APPLY @SpendPattern AS sp;
 
-DECLARE @Milestones TABLE (
+DECLARE @Milestone TABLE (
     milestone_id   NVARCHAR(10) NOT NULL PRIMARY KEY,
     project_id     CHAR(4)      NOT NULL,
-    milestone_name NVARCHAR(150) NOT NULL,
+    milestone_name NVARCHAR(100) NOT NULL,
     due_date       DATE         NOT NULL,
-    status         NVARCHAR(40) NOT NULL
+    status         NVARCHAR(20) NOT NULL
 );
 
-INSERT INTO @Milestones (milestone_id, project_id, milestone_name, due_date, status)
+INSERT INTO @Milestone (milestone_id, project_id, milestone_name, due_date, status)
 SELECT
     CONCAT('MS', RIGHT('000' + CAST(ROW_NUMBER() OVER (ORDER BY p.project_id, ms.stage_number) AS VARCHAR(3)), 3)) AS milestone_id,
     p.project_id,
@@ -259,15 +259,15 @@ SELECT
             p.end_date
     END AS due_date,
     ms.default_status AS status
-FROM @Projects AS p
-CROSS APPLY @MilestoneStages AS ms;
+FROM @Project AS p
+CROSS APPLY @MilestoneStage AS ms;
 
 DECLARE @Forecast TABLE (
     forecast_id     NVARCHAR(10) NOT NULL PRIMARY KEY,
     project_id      CHAR(4)      NOT NULL,
     forecast_date   DATE         NOT NULL,
-    forecast_amount DECIMAL(14,2) NOT NULL,
-    actual_amount   DECIMAL(14,2) NOT NULL
+    forecast_amount DECIMAL(12,2) NOT NULL,
+    actual_amount   DECIMAL(12,2) NOT NULL
 );
 
 INSERT INTO @Forecast (forecast_id, project_id, forecast_date, forecast_amount, actual_amount)
@@ -282,20 +282,20 @@ SELECT
     END AS forecast_date,
     ROUND(p.budget * fp.forecast_fraction, 2) AS forecast_amount,
     ROUND(p.budget * fp.forecast_fraction * fp.actual_multiplier, 2) AS actual_amount
-FROM @Projects AS p
+FROM @Project AS p
 CROSS APPLY @ForecastPattern AS fp;
 
 /* -------------------------------------------------------------
    Derived purchase orders (mirror common procurement cadence)
    ------------------------------------------------------------- */
-DECLARE @PurchaseOrders TABLE (
+DECLARE @PurchaseOrder TABLE (
     po_id      NVARCHAR(12) NOT NULL PRIMARY KEY,
     project_id CHAR(4)      NOT NULL,
     po_date    DATE         NOT NULL,
-    po_amount  DECIMAL(14,2) NOT NULL
+    po_amount  DECIMAL(12,2) NOT NULL
 );
 
-INSERT INTO @PurchaseOrders (po_id, project_id, po_date, po_amount)
+INSERT INTO @PurchaseOrder (po_id, project_id, po_date, po_amount)
 SELECT
     CONCAT('PO', RIGHT('00000' + CAST(ROW_NUMBER() OVER (ORDER BY p.project_id, pop.sequence_no) AS VARCHAR(5)), 5)) AS po_id,
     p.project_id,
@@ -306,7 +306,7 @@ SELECT
             p.end_date
     END AS po_date,
     ROUND(p.budget * pop.po_fraction, 2) AS po_amount
-FROM @Projects AS p
+FROM @Project AS p
 CROSS APPLY @PurchaseOrderPattern AS pop;
 
 /* -------------------------------------------------------------
@@ -331,7 +331,7 @@ SELECT
         END,
         p.end_date
     ) AS actual_end_date
-FROM @Projects AS p;
+FROM @Project AS p;
 
 /* ================================================================================================
    SECTION 3: Insert the prepared data into the live tables (idempotent approach)
@@ -341,36 +341,36 @@ FROM @Projects AS p;
    the script safely at any time.
    ================================================================================================ */
 
--- 3A. Insert managers
-INSERT INTO managers (manager_id, manager_name, email)
+-- 3A. Insert manager
+INSERT INTO manager (manager_id, manager_name, email)
 SELECT src.manager_id, src.manager_name, src.email
-FROM @Managers AS src
+FROM @Manager AS src
 WHERE NOT EXISTS (
-    SELECT 1 FROM managers AS tgt WHERE tgt.manager_id = src.manager_id
+    SELECT 1 FROM manager AS tgt WHERE tgt.manager_id = src.manager_id
 );
 
--- 3B. Insert projects
-INSERT INTO projects (project_id, name, budget, start_date, end_date, manager_id)
+-- 3B. Insert project
+INSERT INTO project (project_id, project_name, budget, start_date, end_date, manager_id)
 SELECT src.project_id, src.project_name, src.budget, src.start_date, src.end_date, src.manager_id
-FROM @Projects AS src
+FROM @Project AS src
 WHERE NOT EXISTS (
-    SELECT 1 FROM projects AS tgt WHERE tgt.project_id = src.project_id
+    SELECT 1 FROM project AS tgt WHERE tgt.project_id = src.project_id
 );
 
 -- 3C. Insert spend log entries
-INSERT INTO spend_log (entry_id, project_id, [date], category, amount)
+INSERT INTO spend_log (entry_id, project_id, spend_date, category, amount)
 SELECT src.entry_id, src.project_id, src.spend_date, src.category, src.amount
 FROM @SpendLog AS src
 WHERE NOT EXISTS (
     SELECT 1 FROM spend_log AS tgt WHERE tgt.entry_id = src.entry_id
 );
 
--- 3D. Insert milestones
-INSERT INTO milestones (milestone_id, project_id, milestone_name, due_date, status)
+-- 3D. Insert milestone
+INSERT INTO milestone (milestone_id, project_id, milestone_name, due_date, status)
 SELECT src.milestone_id, src.project_id, src.milestone_name, src.due_date, src.status
-FROM @Milestones AS src
+FROM @Milestone AS src
 WHERE NOT EXISTS (
-    SELECT 1 FROM milestones AS tgt WHERE tgt.milestone_id = src.milestone_id
+    SELECT 1 FROM milestone AS tgt WHERE tgt.milestone_id = src.milestone_id
 );
 
 -- 3E. Insert forecast outlooks
@@ -381,15 +381,15 @@ WHERE NOT EXISTS (
     SELECT 1 FROM forecast AS tgt WHERE tgt.forecast_id = src.forecast_id
 );
 
--- 3F. Insert purchase orders
-INSERT INTO purchase_orders (po_id, project_id, po_date, po_amount)
+-- 3F. Insert purchase order
+INSERT INTO purchase_order (po_id, project_id, po_date, po_amount)
 SELECT src.po_id, src.project_id, src.po_date, src.po_amount
-FROM @PurchaseOrders AS src
+FROM @PurchaseOrder AS src
 WHERE NOT EXISTS (
-    SELECT 1 FROM purchase_orders AS tgt WHERE tgt.po_id = src.po_id
+    SELECT 1 FROM purchase_order AS tgt WHERE tgt.po_id = src.po_id
 );
 
--- 3G. Insert project completion dates
+-- 3G. Insert project completion date
 INSERT INTO project_completion (project_id, actual_end_date)
 SELECT src.project_id, src.actual_end_date
 FROM @ProjectCompletion AS src
@@ -397,19 +397,18 @@ WHERE NOT EXISTS (
     SELECT 1 FROM project_completion AS tgt WHERE tgt.project_id = src.project_id
 );
 
--- 3H. Insert KPI reference definitions
+-- 3H. Insert KPI reference definition
 INSERT INTO kpi_reference (kpi_name, description, target_threshold)
 SELECT src.kpi_name, src.description, src.target_threshold
 FROM @KpiReference AS src
 WHERE NOT EXISTS (
     SELECT 1 FROM kpi_reference AS tgt WHERE tgt.kpi_name = src.kpi_name
 );
-
 /* ================================================================================================
    SECTION 4: Helpful completion message
    ----------------------------------------------------------------------------------------------
    Providing a short confirmation keeps the user informed when the script finishes executing.
    ================================================================================================ */
 
-PRINT '03_insert_data_mf.sql complete: managers, projects, spend_log, milestones, forecast, purchase orders, completion dates, and KPI reference data are populated.';
+PRINT '03_insert_data.sql complete: manager, project, spend_log, milestone, forecast, purchase order, completion date, and KPI reference data are populated.';
 GO
