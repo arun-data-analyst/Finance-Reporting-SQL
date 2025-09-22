@@ -1,0 +1,26 @@
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs/temp
+*.log
+*.tmp
+*.bak
+*.cache
+
+# SQL Server artifacts (local)
+*.mdf
+*.ldf
+*.ndf
+*.dacpac
+*.bacpac
+
+# Node/Python (future tooling)
+node_modules/
+__pycache__/
+*.pyc
