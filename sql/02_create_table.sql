@@ -2,7 +2,7 @@
 GO
 
 -- =================================================================================================
--- Script: 02_create_tables.sql
+-- Script: 02_create_table.sql
 -- Title : Build the Finance Reporting schema with easy-to-follow explanations
 -- Author: Arun Acharya
 -- Purpose: Create the lookup and main tables that power the Finance Reporting solution. The script is
